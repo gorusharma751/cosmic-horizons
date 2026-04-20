@@ -361,33 +361,34 @@ Then test from frontend:
 - **Free tier**: Supabase / Neon (PostgreSQL)
 - **Managed paid**: Render Postgres / AWS RDS
 
-## Vercel Hobby Collaborator Automation
+## Vercel Hobby Collaborator Automation (Jaibhagwan Only)
 
-If Vercel Hobby blocks builds from collaborator-authored commits, use this PR flow:
+This repo is configured for this exact flow:
 
-- Collaborator pushes to branch and opens PR to `main`.
-- GitHub Action auto-approves and enables auto-merge only for trusted usernames.
-- Final merge commit is done using owner token identity.
+- When `JaibhagwanJindal` pushes to any non-main branch, a PR to `main` is auto-created.
+- Only PRs authored by `JaibhagwanJindal` are auto-approved and auto-merged.
+- Merge uses owner token so the final merge action is performed as owner.
 
-Files added for this:
+Files for this:
 
+- `.github/workflows/auto-pr-jaibhagwan.yml`
 - `.github/workflows/auto-merge-trusted-prs.yml`
-- `.github/trusted-collaborators.txt`
 
 ### One-time Owner Setup
 
 1. Generate a GitHub PAT (classic) for owner account with `repo` scope.
 2. Add repo secret: `OWNER_TOKEN`.
-3. Optional: add repo secret `TRUSTED_COLLABORATORS` as comma-separated usernames.
-4. Or add usernames into `.github/trusted-collaborators.txt` (one per line).
-5. In GitHub repo settings, enable auto-merge:
+3. Enable auto-merge in repo settings:
    - Settings -> General -> Pull Requests -> Allow auto-merge.
-6. If branch protection is enabled, keep required checks/reviews as needed.
+4. Configure branch protection for `main` so collaborators cannot push directly:
+   - Require a pull request before merging.
+   - Restrict who can push to `main` (owner only).
+5. Keep required checks/reviews enabled as needed.
 
 ### Security Notes
 
 - Do not commit PAT tokens in code or PRs.
-- Keep trust list strict. Only add people you fully trust.
+- This automation is locked to only `JaibhagwanJindal`.
 - Revoke and rotate leaked tokens immediately.
 
 ## Add More Features

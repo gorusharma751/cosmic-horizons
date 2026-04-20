@@ -1,0 +1,86 @@
+name: Auto PR for Jaibhagwan Pushes
+
+on:
+  push:
+    branches-ignore:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: auto-pr-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  ALLOWED_COLLABORATOR: jaibhagwanjindal
+
+jobs:
+  create-or-reuse-pr:
+    if: github.actor == 'JaibhagwanJindal' || github.actor == 'jaibhagwanjindal'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate required secret
+        env:
+          OWNER_TOKEN: ${{ secrets.OWNER_TOKEN }}
+        run: |
+          if [ -z "$OWNER_TOKEN" ]; then
+            echo "OWNER_TOKEN secret is missing."
+            exit 1
+          fi
+
+      - name: Create or reuse PR to main
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.OWNER_TOKEN }}
+          script: |
+            const allowed = process.env.ALLOWED_COLLABORATOR;
+            const actor = context.actor.toLowerCase();
+            if (actor !== allowed) {
+              core.notice(`Skipping actor @${context.actor}.`);
+              return;
+            }
+
+            const { owner, repo } = context.repo;
+            const branch = context.ref.replace('refs/heads/', '');
+            if (!branch || branch === 'main') {
+              core.notice('Skipping because branch is main or invalid.');
+              return;
+            }
+
+            const head = `${owner}:${branch}`;
+            const openPrs = await github.rest.pulls.list({
+              owner,
+              repo,
+              state: 'open',
+              head,
+              base: 'main',
+              per_page: 1
+            });
+
+            if (openPrs.data.length > 0) {
+              core.notice(`PR already exists: #${openPrs.data[0].number}`);
+              return;
+            }
+
+            const shortSha = context.sha.substring(0, 7);
+            const title = `Auto PR: ${branch} (${shortSha})`;
+            const body = [
+              'Automatically opened from a push by @JaibhagwanJindal.',
+              '',
+              `Branch: ${branch}`,
+              `Commit: ${context.sha}`
+            ].join('\n');
+
+            const pr = await github.rest.pulls.create({
+              owner,
+              repo,
+              title,
+              body,
+              head: branch,
+              base: 'main',
+              maintainer_can_modify: true
+            });
+
+            core.notice(`Created PR #${pr.data.number}`);

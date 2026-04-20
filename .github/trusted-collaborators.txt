@@ -1,5 +1,0 @@
-# GitHub usernames allowed for automatic PR approval + auto-merge.
-# One username per line. Do not include @.
-
-# Example:
-# your-github-username
