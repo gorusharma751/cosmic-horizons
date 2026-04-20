@@ -361,6 +361,35 @@ Then test from frontend:
 - **Free tier**: Supabase / Neon (PostgreSQL)
 - **Managed paid**: Render Postgres / AWS RDS
 
+## Vercel Hobby Collaborator Automation
+
+If Vercel Hobby blocks builds from collaborator-authored commits, use this PR flow:
+
+- Collaborator pushes to branch and opens PR to `main`.
+- GitHub Action auto-approves and enables auto-merge only for trusted usernames.
+- Final merge commit is done using owner token identity.
+
+Files added for this:
+
+- `.github/workflows/auto-merge-trusted-prs.yml`
+- `.github/trusted-collaborators.txt`
+
+### One-time Owner Setup
+
+1. Generate a GitHub PAT (classic) for owner account with `repo` scope.
+2. Add repo secret: `OWNER_TOKEN`.
+3. Optional: add repo secret `TRUSTED_COLLABORATORS` as comma-separated usernames.
+4. Or add usernames into `.github/trusted-collaborators.txt` (one per line).
+5. In GitHub repo settings, enable auto-merge:
+   - Settings -> General -> Pull Requests -> Allow auto-merge.
+6. If branch protection is enabled, keep required checks/reviews as needed.
+
+### Security Notes
+
+- Do not commit PAT tokens in code or PRs.
+- Keep trust list strict. Only add people you fully trust.
+- Revoke and rotate leaked tokens immediately.
+
 ## Add More Features
 1. **Push Notifications**: Firebase FCM already wired
 2. **Email**: Nodemailer config `.env` mein hai
