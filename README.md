@@ -289,20 +289,77 @@ npx prisma migrate reset
 
 ## Production Deploy
 
-### Backend (Railway/Render/AWS)
+Use split deployment for this codebase:
+
+- **Frontend**: Vercel
+- **Backend API**: Render Web Service (persistent Node server)
+- **Database**: PostgreSQL (Supabase/Neon/Aiven/Render Postgres)
+
+Why not Vercel only?
+
+- Backend uses **Socket.IO** (persistent connections)
+- Backend starts **cron jobs** (`node-cron`) for scheduled tasks
+- Vercel serverless functions are short-lived and not ideal for always-on websocket + cron workloads
+
+### 1) Deploy Backend on Render
+
+This repo now includes `render.yaml` at project root.
+
+1. Push code to GitHub.
+2. In Render, click **New +** → **Blueprint** and select your repo.
+3. Render will detect `render.yaml` and create the backend service from `backend/`.
+4. Set required environment variables in Render dashboard:
+    - `FRONTEND_URL`
+    - `DATABASE_URL`
+    - `JWT_SECRET`
+    - `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`
+    - `TWILIO_*`
+    - `OPENAI_API_KEY`, `GEMINI_API_KEY`
+    - `CLOUDINARY_*`
+    - `SMTP_*`
+    - `REDIS_URL` (recommended for scheduling/cache features)
+5. Deploy and copy your backend URL (example: `https://cosmic-horizons-backend.onrender.com`).
+
+### 2) Deploy Frontend on Vercel
+
+1. Import the same GitHub repo in Vercel.
+2. Set **Root Directory** to `frontend`.
+3. Add Vercel environment variables:
+    - `NEXT_PUBLIC_API_URL=https://your-backend.onrender.com`
+    - `NEXT_PUBLIC_SOCKET_URL=https://your-backend.onrender.com`
+    - `NEXT_PUBLIC_RAZORPAY_KEY=...`
+    - `NEXT_PUBLIC_APP_URL=https://your-frontend-domain.vercel.app`
+4. Deploy.
+
+### 3) Configure Allowed Frontend Origins
+
+Set backend `FRONTEND_URL` in Render to your deployed frontend origin.
+
+- Single domain:
+   - `FRONTEND_URL=https://your-frontend.vercel.app`
+- Multiple domains (comma-separated):
+   - `FRONTEND_URL=https://your-frontend.vercel.app,https://www.yourdomain.com`
+- Include Vercel preview deployments (wildcard supported):
+   - `FRONTEND_URL=https://your-frontend.vercel.app,https://*.vercel.app`
+
+### 4) Post-Deploy Checks
+
 ```bash
-npm run build
-npm start
+# Backend health
+curl https://your-backend.onrender.com/health
 ```
 
-### Frontend (Vercel)
-```bash
-vercel deploy
-```
+Then test from frontend:
 
-### Database
-- **Free**: Supabase (PostgreSQL free tier)
-- **Paid**: AWS RDS / PlanetScale
+- Login / OTP flow
+- Consultation/socket features
+- Payment flow
+- Admin APIs
+
+### Production Database Notes
+
+- **Free tier**: Supabase / Neon (PostgreSQL)
+- **Managed paid**: Render Postgres / AWS RDS
 
 ## Add More Features
 1. **Push Notifications**: Firebase FCM already wired

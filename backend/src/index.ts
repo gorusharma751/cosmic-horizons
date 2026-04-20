@@ -1,4 +1,4 @@
-import cors from 'cors'
+import cors, { CorsOptions } from 'cors'
 import dotenv from 'dotenv'
 import express from 'express'
 import rateLimit from 'express-rate-limit'
@@ -26,11 +26,52 @@ import { setupSocketHandlers } from './services/socket'
 
 const app = express()
 const httpServer = createServer(app)
+const normalizeOrigin = (value: string) => value.trim().replace(/\/+$/, '')
+
+const configuredFrontendOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000')
+  .split(',')
+  .map((origin) => normalizeOrigin(origin))
+  .filter(Boolean)
+
+const exactAllowedOrigins = configuredFrontendOrigins.filter((origin) => !origin.includes('*'))
+const wildcardAllowedOriginPatterns = configuredFrontendOrigins
+  .filter((origin) => origin.includes('*'))
+  .map((origin) => {
+    const escapedPattern = origin.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\\\*/g, '.*')
+    return new RegExp(`^${escapedPattern}$`)
+  })
+
+const isAllowedOrigin = (origin?: string) => {
+  if (!origin) {
+    return true
+  }
+
+  const normalizedOrigin = normalizeOrigin(origin)
+  if (exactAllowedOrigins.includes(normalizedOrigin)) {
+    return true
+  }
+
+  return wildcardAllowedOriginPatterns.some((pattern) => pattern.test(normalizedOrigin))
+}
+
+const socketAllowedOrigins = [...exactAllowedOrigins, ...wildcardAllowedOriginPatterns]
+
+const corsOptions: CorsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, server-to-server checks).
+    if (isAllowedOrigin(origin)) {
+      callback(null, true)
+      return
+    }
+    callback(new Error('Not allowed by CORS'))
+  },
+  credentials: true
+}
 
 // Socket.io setup
 export const io = new SocketServer(httpServer, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: socketAllowedOrigins.length > 0 ? socketAllowedOrigins : true,
     methods: ['GET', 'POST'],
     credentials: true
   }
@@ -38,10 +79,7 @@ export const io = new SocketServer(httpServer, {
 
 // Middleware
 app.use(helmet())
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true
-}))
+app.use(cors(corsOptions))
 app.use(morgan('combined'))
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true }))

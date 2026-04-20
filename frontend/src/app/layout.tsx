@@ -4,7 +4,11 @@ import '@/styles/globals.css'
 import Providers from '@/components/layout/Providers'
 import StarsBackground from '@/components/ui/StarsBackground'
 
+const metadataBaseUrl = process.env.NEXT_PUBLIC_APP_URL
+  || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+
 export const metadata: Metadata = {
+  metadataBase: new URL(metadataBaseUrl),
   title: 'Cosmic Horizons | Astrology Consultancy',
   description: 'India\'s premier astrology platform. Talk to expert pandits for kundli, horoscope, vastu, and spiritual guidance.',
   keywords: 'astrology, kundli, horoscope, pandit, vastu, gemstone, rudraksha, jyotish',
