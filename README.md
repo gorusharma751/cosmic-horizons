@@ -368,6 +368,12 @@ This repo is configured for this exact flow:
 - When `JaibhagwanJindal` pushes to any non-main branch, a PR to `main` is auto-created.
 - Only PRs authored by `JaibhagwanJindal` are auto-approved and auto-merged.
 - Merge uses owner token so the final merge action is performed as owner.
+- If `JaibhagwanJindal` directly pushes to `main`, workflow will fail and warn immediately.
+
+Important limitation:
+
+- GitHub cannot convert an already completed direct push on `main` into a PR before it lands.
+- To guarantee owner-final history flow, branch protection on `main` is mandatory.
 
 Files for this:
 

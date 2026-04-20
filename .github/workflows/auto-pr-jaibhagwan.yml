@@ -2,8 +2,8 @@ name: Auto PR for Jaibhagwan Pushes
 
 on:
   push:
-    branches-ignore:
-      - main
+    branches:
+      - '**'
 
 permissions:
   contents: read
@@ -17,8 +17,19 @@ env:
   ALLOWED_COLLABORATOR: jaibhagwanjindal
 
 jobs:
+  block-main-push:
+    if: (github.actor == 'JaibhagwanJindal' || github.actor == 'jaibhagwanjindal') && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail on direct main push
+        run: |
+          echo "Direct push to main by JaibhagwanJindal detected."
+          echo "This cannot be converted to PR before landing."
+          echo "Enable branch protection on main: require PR + owner-only direct push."
+          exit 1
+
   create-or-reuse-pr:
-    if: github.actor == 'JaibhagwanJindal' || github.actor == 'jaibhagwanjindal'
+    if: (github.actor == 'JaibhagwanJindal' || github.actor == 'jaibhagwanjindal') && github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Validate required secret
