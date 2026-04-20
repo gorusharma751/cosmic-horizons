@@ -1,0 +1,240 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cinzel:wght@400;500;600;700&family=Raleway:ital,wght@0,300;0,400;0,500;0,600;1,300&family=Noto+Serif+Devanagari:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: 'Cinzel Decorative', serif;
+  --font-body: 'Raleway', sans-serif;
+  --font-devanagari: 'Noto Serif Devanagari', serif;
+
+  --saffron: #ff7d0f;
+  --gold: #fbbf24;
+  --deep-bg: #0a0612;
+  --card-bg: rgba(26, 19, 48, 0.8);
+  --border-color: rgba(251, 191, 36, 0.2);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: #0a0612;
+  color: #f3f0ff;
+  overflow-x: hidden;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #0a0612; }
+::-webkit-scrollbar-thumb { background: #ff7d0f; border-radius: 3px; }
+
+/* Stars background */
+.stars-bg {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.star {
+  position: absolute;
+  border-radius: 50%;
+  background: white;
+  animation: twinkle var(--duration, 3s) ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+}
+
+/* Glassmorphism cards */
+.glass-card {
+  background: rgba(26, 19, 48, 0.7);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(251, 191, 36, 0.15);
+  border-radius: 16px;
+}
+
+.glass-card-light {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+}
+
+/* Gold shimmer text */
+.text-shimmer {
+  background: linear-gradient(90deg, #fbbf24, #ff7d0f, #fbbf24);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 3s linear infinite;
+}
+
+.text-gold-gradient {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-saffron-gradient {
+  background: linear-gradient(135deg, #ff7d0f, #fbbf24);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Buttons */
+.btn-primary {
+  @apply bg-gradient-to-r from-saffron-500 to-gold-500 text-white font-semibold px-6 py-3 rounded-full 
+         hover:shadow-saffron transition-all duration-300 hover:scale-105 active:scale-95;
+}
+
+.btn-outline {
+  @apply border border-gold-400 text-gold-400 font-semibold px-6 py-3 rounded-full
+         hover:bg-gold-400 hover:text-deep-900 transition-all duration-300;
+}
+
+.btn-ghost {
+  @apply text-gray-300 font-medium px-4 py-2 rounded-lg
+         hover:bg-white/10 transition-all duration-200;
+}
+
+/* Section divider */
+.divider-cosmic {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(251,191,36,0.4), transparent);
+  margin: 2rem 0;
+}
+
+/* Input fields */
+.input-cosmic {
+  @apply w-full bg-white/5 border border-gold-400/20 rounded-xl px-4 py-3 text-white 
+         placeholder-gray-500 focus:outline-none focus:border-saffron-500 focus:ring-1 
+         focus:ring-saffron-500 transition-all duration-200;
+}
+
+/* Consultation type cards */
+.consult-card {
+  @apply glass-card p-6 cursor-pointer transition-all duration-300 
+         hover:border-saffron-500/50 hover:shadow-saffron hover:scale-105;
+}
+
+/* Online indicator */
+.online-dot {
+  @apply w-2.5 h-2.5 rounded-full bg-green-400 inline-block;
+  box-shadow: 0 0 6px rgba(74, 222, 128, 0.8);
+}
+
+/* Rating stars */
+.star-rating {
+  color: #fbbf24;
+  text-shadow: 0 0 8px rgba(251, 191, 36, 0.5);
+}
+
+/* Zodiac symbol */
+.zodiac-card {
+  @apply glass-card p-4 text-center cursor-pointer transition-all duration-300
+         hover:border-gold-400/50 hover:-translate-y-2;
+}
+
+/* Notification badge */
+.badge {
+  @apply text-xs font-bold px-2 py-0.5 rounded-full;
+}
+
+.badge-saffron {
+  @apply bg-saffron-500 text-white;
+}
+
+/* Loading shimmer */
+.skeleton {
+  background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.05) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Live badge */
+.live-badge {
+  @apply flex items-center gap-1 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full;
+}
+
+.live-badge::before {
+  content: '';
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: white;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* Mobile responsive utilities */
+@media (max-width: 768px) {
+  .hide-mobile { display: none !important; }
+}
+
+@media (min-width: 769px) {
+  .hide-desktop { display: none !important; }
+}
+
+/* Page transitions */
+.page-enter { opacity: 0; transform: translateY(10px); }
+.page-enter-active { opacity: 1; transform: translateY(0); transition: all 0.3s ease; }
+
+/* Missing animations */
+@keyframes shimmer {
+  0%, 100% { background-position: 200% 0; }
+  50% { background-position: 0 0; }
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* Shadows */
+.shadow-saffron {
+  box-shadow: 0 0 20px rgba(255, 125, 15, 0.3);
+}
+
+/* Gradient backgrounds */
+.bg-saffron-gradient {
+  background: linear-gradient(135deg, #ff7d0f, #fbbf24);
+}
+
+/* Additional utility classes */
+.line-clamp-1 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+}
+
+.line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.line-clamp-3 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}

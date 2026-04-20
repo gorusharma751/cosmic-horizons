@@ -1,0 +1,330 @@
+// This is your Prisma schema file
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ========== USER ==========
+model User {
+  id              String   @id @default(cuid())
+  phone           String   @unique
+  name            String
+  email           String?  @unique
+  avatar          String?
+  role            Role     @default(USER)
+  walletBalance   Float    @default(0)
+  dateOfBirth     String?
+  timeOfBirth     String?
+  placeOfBirth    String?
+  zodiacSign      String?
+  language        String   @default("hindi")
+  isVerified      Boolean  @default(false)
+  isActive        Boolean  @default(true)
+  fcmToken        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  consultations   Consultation[]
+  orders          Order[]
+  kundliReports   KundliReport[]
+  reviews         Review[]
+  walletTxns      WalletTransaction[]
+  poojaBookings   PoojaBooking[]
+  pandit          Pandit?
+  otps            OTP[]
+}
+
+enum Role {
+  USER
+  PANDIT
+  ADMIN
+}
+
+// ========== PANDIT ==========
+model Pandit {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id])
+  expertise           String[]
+  languages           String[]
+  experience          Int      @default(0)
+  rating              Float    @default(0)
+  totalConsultations  Int      @default(0)
+  reviewCount         Int      @default(0)
+  callRate            Float    @default(20)
+  chatRate            Float    @default(15)
+  videoRate           Float    @default(50)
+  isOnline            Boolean  @default(false)
+  isLive              Boolean  @default(false)
+  isApproved          Boolean  @default(false)
+  bio                 String?  @db.Text
+  education           String?
+  certifications      String[]
+  about               String?  @db.Text
+  followersCount      Int      @default(0)
+  totalEarnings       Float    @default(0)
+  walletBalance       Float    @default(0)
+  liveStreamTitle     String?
+  liveStreamTopic     String?
+  liveViewerCount     Int      @default(0)
+  createdAt           DateTime @default(now())
+
+  consultations       Consultation[]
+  reviews             Review[]
+}
+
+// ========== OTP ==========
+model OTP {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  phone     String
+  otp       String
+  expiresAt DateTime
+  isUsed    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+// ========== CONSULTATION ==========
+model Consultation {
+  id          String             @id @default(cuid())
+  userId      String
+  user        User               @relation(fields: [userId], references: [id])
+  panditId    String
+  pandit      Pandit             @relation(fields: [panditId], references: [id])
+  type        ConsultationType
+  status      ConsultationStatus @default(PENDING)
+  duration    Int?               // seconds
+  amount      Float              @default(0)
+  rating      Int?
+  review      String?            @db.Text
+  startedAt   DateTime?
+  endedAt     DateTime?
+  roomId      String?
+  createdAt   DateTime           @default(now())
+
+  messages    Message[]
+}
+
+enum ConsultationType {
+  CALL
+  CHAT
+  VIDEO
+  LIVE
+}
+
+enum ConsultationStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+// ========== MESSAGE ==========
+model Message {
+  id              String       @id @default(cuid())
+  consultationId  String
+  consultation    Consultation @relation(fields: [consultationId], references: [id])
+  senderId        String
+  message         String       @db.Text
+  type            String       @default("text")
+  createdAt       DateTime     @default(now())
+}
+
+// ========== KUNDLI ==========
+model KundliReport {
+  id            String   @id @default(cuid())
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id])
+  name          String
+  dateOfBirth   String
+  timeOfBirth   String
+  placeOfBirth  String
+  gender        String
+  sunSign       String?
+  moonSign      String?
+  ascendant     String?
+  nakshatra     String?
+  planetary     Json?
+  predictions   Json?
+  remedies      String[]
+  luckyColor    String?
+  luckyNumber   Int?
+  luckyDay      String?
+  gemstone      String?
+  pdfUrl        String?
+  isPremium     Boolean  @default(false)
+  language      String   @default("hindi")
+  createdAt     DateTime @default(now())
+}
+
+// ========== PRODUCT ==========
+model Product {
+  id              String          @id @default(cuid())
+  name            String
+  slug            String          @unique
+  category        ProductCategory
+  price           Float
+  discountPrice   Float?
+  description     String          @db.Text
+  images          String[]
+  rating          Float           @default(0)
+  reviewCount     Int             @default(0)
+  inStock         Boolean         @default(true)
+  isFeatured      Boolean         @default(false)
+  zodiacSuitable  String[]
+  benefits        String[]
+  specifications  Json?
+  weight          String?
+  stock           Int             @default(100)
+  soldCount       Int             @default(0)
+  createdAt       DateTime        @default(now())
+
+  orderItems      OrderItem[]
+  reviews         Review[]
+}
+
+enum ProductCategory {
+  GEMSTONE
+  RUDRAKSHA
+  MALA
+  YANTRA
+  KAVACH
+  POOJA_KIT
+  INCENSE
+  IDOL
+}
+
+// ========== ORDER ==========
+model Order {
+  id              String      @id @default(cuid())
+  userId          String
+  user            User        @relation(fields: [userId], references: [id])
+  items           OrderItem[]
+  totalAmount     Float
+  status          OrderStatus @default(PENDING)
+  shippingAddress Json
+  paymentId       String?
+  razorpayOrderId String?
+  trackingId      String?
+  notes           String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id])
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  price     Float
+}
+
+// ========== POOJA SERVICE ==========
+model PoojaService {
+  id          String         @id @default(cuid())
+  name        String
+  type        String
+  category    String
+  price       Float
+  duration    String
+  description String         @db.Text
+  benefits    String[]
+  includes    String[]
+  image       String?
+  slug        String         @unique
+  isActive    Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+
+  bookings    PoojaBooking[]
+}
+
+model PoojaBooking {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  serviceId       String
+  service         PoojaService @relation(fields: [serviceId], references: [id])
+  scheduledDate   DateTime
+  status          String   @default("pending")
+  amount          Float
+  notes           String?
+  streamUrl       String?
+  createdAt       DateTime @default(now())
+}
+
+// ========== REVIEW ==========
+model Review {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  panditId    String?
+  pandit      Pandit?  @relation(fields: [panditId], references: [id])
+  productId   String?
+  product     Product? @relation(fields: [productId], references: [id])
+  rating      Int
+  comment     String   @db.Text
+  createdAt   DateTime @default(now())
+}
+
+// ========== WALLET ==========
+model WalletTransaction {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  type            String   // credit | debit
+  amount          Float
+  description     String
+  consultationId  String?
+  orderId         String?
+  paymentId       String?
+  createdAt       DateTime @default(now())
+}
+
+// ========== HOROSCOPE ==========
+model Horoscope {
+  id          String   @id @default(cuid())
+  sign        String
+  type        String   // daily | weekly | monthly
+  date        String
+  prediction  String   @db.Text
+  luckyColor  String?
+  luckyNumber Int?
+  luckyDay    String?
+  areas       Json?
+  language    String   @default("hindi")
+  createdAt   DateTime @default(now())
+
+  @@unique([sign, type, date, language])
+}
+
+// ========== WHITE LABEL TENANT ==========
+model Tenant {
+  id          String   @id @default(cuid())
+  name        String
+  domain      String   @unique
+  logo        String?
+  primaryColor String  @default("#ff7d0f")
+  isActive    Boolean  @default(true)
+  plan        String   @default("basic")
+  monthlyFee  Float    @default(5000)
+  commission  Float    @default(20) // percentage
+  ownerId     String
+  createdAt   DateTime @default(now())
+}
