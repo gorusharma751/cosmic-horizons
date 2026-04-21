@@ -33,18 +33,15 @@ jobs:
 
       - name: Merge PR as Owner
         uses: actions/github-script@v7
-        env:
-          ALLOWED_COLLABORATORS: jaibhagwanjindal,gorusharma751
         with:
-          # Use the OWNER_TOKEN to bypass restricted GITHUB_TOKEN permissions
           github-token: ${{ secrets.OWNER_TOKEN }}
           script: |
             const pullNumber = context.payload.pull_request.number;
             const prAuthor = context.payload.pull_request.user.login.toLowerCase();
-            const allowedAuthors = process.env.ALLOWED_COLLABORATORS.toLowerCase().split(',').map(s => s.trim());
+            const allowedAuthors = ['jaibhagwanjindal', 'gorusharma751'];
 
             // 1. Verify PR author is in the allowed list
-            if (!allowedAuthors.includes(prAuthor)) {
+            if (!allowedAuthors.map(a => a.toLowerCase()).includes(prAuthor)) {
               core.notice(`Skipping: PR author @${prAuthor} is not in the allowed list [${allowedAuthors.join(', ')}].`);
               return;
             }
