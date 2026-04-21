@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  ALLOWED_COLLABORATOR: jaibhagwanjindal
+  ALLOWED_COLLABORATOR: jaibhagwanjindal,gorusharma751
 
 jobs:
   auto-merge:
