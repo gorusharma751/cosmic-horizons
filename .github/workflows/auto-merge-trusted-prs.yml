@@ -21,7 +21,7 @@ env:
 
 jobs:
   auto-merge:
-    # Only run for PRs targeting main and created by you
+    # Only run for PRs targeting 'main' that are not drafts
     if: github.event.pull_request.base.ref == 'main' && github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
@@ -30,112 +30,62 @@ jobs:
           OWNER_TOKEN: ${{ secrets.OWNER_TOKEN }}
         run: |
           if [ -z "$OWNER_TOKEN" ]; then
-            echo "OWNER_TOKEN secret is missing. Please add it to repository secrets."
+            echo "Error: OWNER_TOKEN secret is missing in GitHub Settings -> Secrets -> Actions."
             exit 1
           fi
 
-      - name: Validate owner token identity
-        id: owner_identity
+      - name: Merge PR as Owner
         uses: actions/github-script@v7
         with:
+          # Use the OWNER_TOKEN to bypass restricted GITHUB_TOKEN permissions
           github-token: ${{ secrets.OWNER_TOKEN }}
           script: |
-            const viewer = await github.graphql(`query { viewer { login } }`);
-            const tokenLogin = viewer.viewer.login;
-            const tokenLoginLower = tokenLogin.toLowerCase();
-            const repoOwnerLower = context.repo.owner.toLowerCase();
+            const pullNumber = context.payload.pull_request.number;
+            const prAuthor = context.payload.pull_request.user.login.toLowerCase();
+            const allowedAuthor = process.env.ALLOWED_COLLABORATOR.toLowerCase();
 
-            if (tokenLoginLower !== repoOwnerLower) {
-              core.setFailed(`OWNER_TOKEN belongs to @${tokenLogin}, but repository owner is @${context.repo.owner}.`);
+            // 1. Verify PR author is the trusted user
+            if (prAuthor !== allowedAuthor) {
+              core.notice(`Skipping: PR author @${prAuthor} is not the trusted collaborator @${allowedAuthor}.`);
               return;
             }
-            core.setOutput('owner_login', tokenLogin);
 
-      - name: Allow only Jaibhagwan-sourced changes
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const actor = context.payload.pull_request.user.login.toLowerCase();
-            const allowed = process.env.ALLOWED_COLLABORATOR.toLowerCase();
-            if (actor !== allowed) {
-              core.setFailed(`PR actor @${actor} is not the allowed collaborator @${allowed}.`);
-            }
+            // 2. Identify the owner account (Gourav) from the token
+            const viewer = await github.graphql(`query { viewer { login } }`);
+            const ownerLogin = viewer.viewer.login;
+            core.notice(`Acting as owner: @${ownerLogin}`);
 
-      - name: Auto-approve PR
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.OWNER_TOKEN }}
-          script: |
-            const pullNumber = context.payload.pull_request.number;
             const { owner, repo } = context.repo;
-            
-            // First, check if already approved to avoid errors
-            const reviews = await github.rest.pulls.listReviews({ owner, repo, pull_number: pullNumber });
-            const alreadyApproved = reviews.data.some(r => r.state === 'APPROVED' && r.user.login === '${{ steps.owner_identity.outputs.owner_login }}');
-            
-            if (!alreadyApproved) {
-              await github.rest.pulls.createReview({
-                owner,
-                repo,
-                pull_number: pullNumber,
-                event: 'APPROVE',
-                body: 'Auto-approved by Owner Token for seamless workflow.'
-              });
-            }
-
-      - name: Retry direct owner merge until ready
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.OWNER_TOKEN }}
-          script: |
-            const pullNumber = context.payload.pull_request.number;
-            const ownerLogin = `${{ steps.owner_identity.outputs.owner_login }}`;
-            const { owner, repo } = context.repo;
-            
-            // Wait up to 10 minutes (Vercel/CI can be slow)
-            const deadlineMs = Date.now() + 10 * 60 * 1000;
-            const waitMs = 20000; // Check every 20 seconds
+            const deadlineMs = Date.now() + 5 * 60 * 1000; // Try for 5 minutes
+            const waitMs = 20000; // Wait 20 seconds between tries
 
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
             while (Date.now() < deadlineMs) {
               try {
-                // Use REST API for merging. This is the most reliable way to 
-                // avoid the "GraphQL verified email" error.
                 await github.rest.pulls.merge({
                   owner,
                   repo,
                   pull_number: pullNumber,
-                  merge_method: 'squash', // Squash for a clean history
-                  commit_title: `Auto-merged PR #${pullNumber} [skip ci]`,
-                  commit_message: `Verified owner-authored merge via REST API by @${ownerLogin}.`
+                  merge_method: 'squash',
+                  commit_title: `Auto-merge PR #${pullNumber} from @${prAuthor}`,
+                  commit_message: `Automatically merged by @${ownerLogin} via GitHub Actions.`
                 });
 
-                core.notice(`Successfully merged PR #${pullNumber} as @${ownerLogin}. Workflow complete.`);
+                core.notice(`Successfully merged PR #${pullNumber} as @${ownerLogin}.`);
                 return;
               } catch (error) {
                 const status = error.status;
-                const message = error.message;
-
-                // 405/409/422 are standard for "not ready yet" (checks still running)
+                // 405 (Blocked by CI), 409 (Conflict), or 422 (Unprocessable)
                 if ([405, 409, 422].includes(status)) {
-                  console.log(`Merge status: ${status} (${message}). Retrying in 20s...`);
+                  core.notice(`PR #${pullNumber} is not ready (Status ${status}). Checking again in 20 seconds...`);
                   await sleep(waitMs);
                   continue;
                 }
-
-                // If PR is already merged, we are done
-                if (message.includes("Pull Request is not mergeable")) {
-                    const pr = await github.rest.pulls.get({ owner, repo, pull_number: pullNumber });
-                    if (pr.data.merged) {
-                        core.notice("PR was already merged by another process.");
-                        return;
-                    }
-                }
-
-                core.setFailed(`Critical error during merge: ${message}`);
+                
+                core.setFailed(`Merge failed permanently with error ${status}: ${error.message}`);
                 return;
               }
             }
 
-            core.setFailed('Merge timeout: PR checks did not pass within 10 minutes.');
+            core.setFailed("Timeout: The PR was not ready to merge (likely waiting on CI/Vercel) after 5 minutes.");
