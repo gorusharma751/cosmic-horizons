@@ -331,6 +331,33 @@ This repo now includes `render.yaml` at project root.
     - `NEXT_PUBLIC_APP_URL=https://your-frontend-domain.vercel.app`
 4. Deploy.
 
+#### ⚠️ Production Branch Restriction (IMPORTANT)
+
+**Configure Vercel to deploy only from `main` branch to production:**
+
+1. Go to Vercel Project Settings → **Git**
+2. Under **Production Branch**, set to `main` (default is correct)
+3. Enable **Vercel for GitHub** integration if not already enabled
+4. Save settings
+
+**What this does:**
+- ✅ `main` branch: Auto-deploys to production (team members only)
+- ✅ All other branches: Preview deployments only (if configured)
+- ❌ No simultaneous multiple deployments
+- ❌ Non-team members cannot trigger production deployments
+
+**Prevent unnecessary simultaneous preview deployments:**
+
+In Vercel Project Settings → **Git** → **Deploy on Push**:
+- Enable deploy on push (for main)
+- Disable preview deployments for feature branches (optional for cost savings)
+
+**Vercel Dashboard Preview:**
+- 🟢 Main branch deployments: Green "Ready" (production)
+- 🟡 Feature branch deployments: Yellow warning ring (preview, requires approval)
+
+Repo includes `vercel.json` with this configuration hard-coded.
+
 ### 3) Configure Allowed Frontend Origins
 
 Set backend `FRONTEND_URL` in Render to your deployed frontend origin.
@@ -396,6 +423,49 @@ Files for this:
 - Do not commit PAT tokens in code or PRs.
 - This automation is locked to only `JaibhagwanJindal`.
 - Revoke and rotate leaked tokens immediately.
+
+## Deployment Policy
+
+### Production Deployments (Main Branch Only)
+
+**Allowed:**
+- ✅ `main` branch commits → Vercel auto-deploys to production
+- ✅ Only team members (gorusharma751, others added to Vercel) can see production deploys
+- ✅ PR reviews required before merge to `main` (GitHub branch protection)
+
+**Restricted:**
+- ❌ Feature branches do NOT auto-deploy to production
+- ❌ Simultaneous deployments are cancelled (GitHub concurrency prevents this)
+- ❌ Non-team members cannot trigger production deploys (Vercel shows yellow warning)
+
+### Preview Deployments
+
+- All non-main branches get preview URLs from Vercel (for testing)
+- Preview deploys are for QA/review only, not production traffic
+- Automatically cleaned up after PR is closed/merged
+
+### Deployment Flow
+
+```
+JaibhagwanJindal pushes to 'features' branch
+              ↓
+GitHub Actions: Auto-create PR to main
+              ↓
+GitHub Actions: Auto-approve & auto-merge (owner-authored)
+              ↓
+Main branch updated
+              ↓
+Vercel: Auto-deploy to production (ONLY main branch)
+              ↓
+Production live ✅
+```
+
+### How Vercel Prevents Deployments from Non-Main
+
+1. `vercel.json` in repo configures `git.deploymentEnabled`
+2. Vercel Project Settings → Git → Production Branch = `main`
+3. Only `main` branch automatic deployments go to production domain
+4. All other branches are preview deployments (separate URLs)
 
 ## Add More Features
 1. **Push Notifications**: Firebase FCM already wired
