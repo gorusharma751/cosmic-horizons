@@ -2,7 +2,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
   "env": {
-    "NEXT_PUBLIC_APP_URL": "@vercel_url"
+    "NEXT_PUBLIC_APP_URL": "https://cosmic-horizons.vercel.app"
   },
   "regions": ["iad1"],
   "functions": {
