@@ -126,9 +126,10 @@ jobs:
               });
             } catch (error) {
               const message = String(error.message || error);
+              const normalized = message.toLowerCase();
               if (
-                message.includes('Cannot approve your own pull request') ||
-                message.includes('Review comments is invalid')
+                normalized.includes('approve your own pull request') ||
+                normalized.includes('review comments is invalid')
               ) {
                 core.notice(`Approval skipped: ${message}`);
                 return;
