@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  ALLOWED_COLLABORATOR: jaibhagwanjindal
+  ALLOWED_COLLABORATOR: jaibhagwanjindal,gorusharma751
 
 jobs:
   create-or-reuse-pr:
