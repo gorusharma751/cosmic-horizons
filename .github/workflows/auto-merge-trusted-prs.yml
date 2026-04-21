@@ -39,7 +39,7 @@ jobs:
         with:
           github-token: ${{ secrets.OWNER_TOKEN }}
           script: |
-            const viewer = await github.graphql(`query { viewer { login databaseId } }`);
+            const viewer = await github.graphql(`query { viewer { login } }`);
             const tokenLogin = viewer.viewer.login;
             const tokenLoginLower = tokenLogin.toLowerCase();
             const repoOwnerLower = context.repo.owner.toLowerCase();
@@ -52,10 +52,8 @@ jobs:
               return;
             }
 
-            const ownerNoreply = `${viewer.viewer.databaseId}+${tokenLogin}@users.noreply.github.com`;
             core.notice(`Using owner identity @${tokenLogin}.`);
             core.setOutput('owner_login', tokenLogin);
-            core.setOutput('owner_email', ownerNoreply);
 
       - name: Allow only Jaibhagwan-sourced changes
         id: author_gate
@@ -146,19 +144,17 @@ jobs:
           script: |
             const pullRequestId = context.payload.pull_request.node_id;
             const pullNumber = context.payload.pull_request.number;
-            const ownerEmail = `${{ steps.owner_identity.outputs.owner_email }}`;
             const ownerLogin = `${{ steps.owner_identity.outputs.owner_login }}`;
             const headline = `Merge PR #${pullNumber}: ${context.payload.pull_request.title}`;
             const body = `Auto-merged by owner @${ownerLogin}.`;
 
             try {
               await github.graphql(
-                `mutation($pullRequestId: ID!, $authorEmail: String!, $headline: String!, $body: String!) {
+                `mutation($pullRequestId: ID!, $headline: String!, $body: String!) {
                   mergePullRequest(
                     input: {
                       pullRequestId: $pullRequestId,
                       mergeMethod: SQUASH,
-                      authorEmail: $authorEmail,
                       commitHeadline: $headline,
                       commitBody: $body
                     }
@@ -170,7 +166,6 @@ jobs:
                 }`,
                 {
                   pullRequestId,
-                  authorEmail: ownerEmail,
                   headline,
                   body
                 }
@@ -184,50 +179,46 @@ jobs:
               core.setOutput('merged', 'false');
             }
 
-      - name: Enable auto-merge fallback
+      - name: Retry direct owner merge until ready
         if: steps.author_gate.outputs.allowed == 'true' && steps.merge_now.outputs.merged != 'true'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.OWNER_TOKEN }}
           script: |
-            const pullRequestId = context.payload.pull_request.node_id;
             const pullNumber = context.payload.pull_request.number;
-            const ownerEmail = `${{ steps.owner_identity.outputs.owner_email }}`;
             const ownerLogin = `${{ steps.owner_identity.outputs.owner_login }}`;
+            const { owner, repo } = context.repo;
+            const deadlineMs = Date.now() + 8 * 60 * 1000;
+            const waitMs = 15000;
 
-            try {
-              await github.graphql(
-                `mutation($pullRequestId: ID!, $authorEmail: String!, $headline: String!, $body: String!) {
-                  enablePullRequestAutoMerge(
-                    input: {
-                      pullRequestId: $pullRequestId,
-                      mergeMethod: SQUASH,
-                      authorEmail: $authorEmail,
-                      commitHeadline: $headline,
-                      commitBody: $body
-                    }
-                  ) {
-                    pullRequest { number }
-                  }
-                }`,
-                {
-                  pullRequestId,
-                  authorEmail: ownerEmail,
-                  headline: `Merge PR #${pullNumber}: ${context.payload.pull_request.title}`,
-                  body: `Auto-merged by owner @${ownerLogin}.`
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+            while (Date.now() < deadlineMs) {
+              try {
+                await github.rest.pulls.merge({
+                  owner,
+                  repo,
+                  pull_number: pullNumber,
+                  merge_method: 'squash',
+                  commit_title: `Merge PR #${pullNumber}: ${context.payload.pull_request.title}`,
+                  commit_message: `Auto-merged by owner @${ownerLogin}.`
+                });
+
+                core.notice(`Merged after readiness wait as owner @${ownerLogin}.`);
+                return;
+              } catch (error) {
+                const message = String(error.message || error);
+                const status = Number(error.status || 0);
+
+                if ([405, 409, 422].includes(status)) {
+                  core.notice(`Merge not ready yet (status ${status}): ${message}`);
+                  await sleep(waitMs);
+                  continue;
                 }
-              );
-            } catch (error) {
-              const message = String(error.message || error);
-              if (
-                message.includes('already enabled') ||
-                message.includes('Auto merge is disabled') ||
-                message.includes('is not mergeable') ||
-                message.includes('At least 1 approving review is required') ||
-                message.includes('Could not resolve to a PullRequest')
-              ) {
-                core.notice(`Auto-merge not enabled yet: ${message}`);
+
+                core.notice(`Skipping automatic merge due to non-retryable error: ${message}`);
                 return;
               }
-              throw error;
             }
+
+            core.notice('Timed out waiting for merge readiness. Owner can merge manually.');
