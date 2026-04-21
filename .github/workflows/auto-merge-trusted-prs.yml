@@ -39,195 +39,84 @@ jobs:
         with:
           github-token: ${{ secrets.OWNER_TOKEN }}
           script: |
-            const viewer = await github.graphql(`query { viewer { login databaseId } }`);
+            const viewer = await github.graphql(`query { viewer { login } }`);
             const tokenLogin = viewer.viewer.login;
             const tokenLoginLower = tokenLogin.toLowerCase();
             const repoOwnerLower = context.repo.owner.toLowerCase();
 
             if (tokenLoginLower !== repoOwnerLower) {
-              core.setFailed(
-                `OWNER_TOKEN belongs to @${tokenLogin}, but repo owner is @${context.repo.owner}. ` +
-                'Use Gourav owner token in OWNER_TOKEN secret.'
-              );
+              core.setFailed(`OWNER_TOKEN belongs to @${tokenLogin}, but repository owner is @${context.repo.owner}.`);
               return;
             }
-
-            const ownerNoreply = `${viewer.viewer.databaseId}+${tokenLogin}@users.noreply.github.com`;
-            core.notice(`Using owner identity @${tokenLogin}.`);
             core.setOutput('owner_login', tokenLogin);
-            core.setOutput('owner_email', ownerNoreply);
 
       - name: Allow only Jaibhagwan-sourced changes
-        id: author_gate
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.OWNER_TOKEN }}
           script: |
-            const allowed = process.env.ALLOWED_COLLABORATOR;
-            const author = context.payload.pull_request.user.login.toLowerCase();
-
-            if (author === allowed) {
-              core.notice(`PR author @${author} is allowed.`);
-              core.setOutput('allowed', 'true');
-              return;
+            const actor = context.payload.pull_request.user.login.toLowerCase();
+            const allowed = process.env.ALLOWED_COLLABORATOR.toLowerCase();
+            if (actor !== allowed) {
+              core.setFailed(`PR actor @${actor} is not the allowed collaborator @${allowed}.`);
             }
-
-            const { owner, repo } = context.repo;
-            const pull_number = context.payload.pull_request.number;
-            const commits = await github.paginate(github.rest.pulls.listCommits, {
-              owner,
-              repo,
-              pull_number,
-              per_page: 100
-            });
-
-            if (commits.length === 0) {
-              core.notice('No commits found in PR. Skipping.');
-              core.setOutput('allowed', 'false');
-              return;
-            }
-
-            const isCommitFromAllowedUser = (commitItem) => {
-              const authorLogin = commitItem.author?.login?.toLowerCase() || '';
-              const committerLogin = commitItem.committer?.login?.toLowerCase() || '';
-              return authorLogin === allowed || committerLogin === allowed;
-            };
-
-            const hasNonAllowedCommit = commits.some((commitItem) => !isCommitFromAllowedUser(commitItem));
-            if (hasNonAllowedCommit) {
-              core.notice(
-                `PR author is @${author} and at least one commit is not from @${allowed}. Skipping.`
-              );
-              core.setOutput('allowed', 'false');
-              return;
-            }
-
-            core.notice(
-              `PR author is @${author}, but all commits are from @${allowed}. Allowing auto-merge.`
-            );
-            core.setOutput('allowed', 'true');
 
       - name: Auto-approve PR
-        if: steps.author_gate.outputs.allowed == 'true'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.OWNER_TOKEN }}
           script: |
-            const pull_number = context.payload.pull_request.number;
+            const pullNumber = context.payload.pull_request.number;
             const { owner, repo } = context.repo;
+            await github.rest.pulls.createReview({
+              owner,
+              repo,
+              pull_number: pullNumber,
+              event: 'APPROVE',
+              body: 'Auto-approved for owner-authored merge.'
+            });
 
-            try {
-              await github.rest.pulls.createReview({
-                owner,
-                repo,
-                pull_number,
-                event: 'APPROVE',
-                body: 'Auto-approved for trusted collaborator.'
-              });
-            } catch (error) {
-              const message = String(error.message || error);
-              const normalized = message.toLowerCase();
-              if (
-                normalized.includes('approve your own pull request') ||
-                normalized.includes('review comments is invalid')
-              ) {
-                core.notice(`Approval skipped: ${message}`);
-                return;
-              }
-              throw error;
-            }
-
-      - name: Try instant owner-authored merge (squash)
-        id: merge_now
-        if: steps.author_gate.outputs.allowed == 'true'
+      - name: Retry direct owner merge until ready
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.OWNER_TOKEN }}
           script: |
-            const pullRequestId = context.payload.pull_request.node_id;
             const pullNumber = context.payload.pull_request.number;
-            const ownerEmail = `${{ steps.owner_identity.outputs.owner_email }}`;
             const ownerLogin = `${{ steps.owner_identity.outputs.owner_login }}`;
-            const headline = `Merge PR #${pullNumber}: ${context.payload.pull_request.title}`;
-            const body = `Auto-merged by owner @${ownerLogin}.`;
+            const { owner, repo } = context.repo;
+            const deadlineMs = Date.now() + 8 * 60 * 1000; // 8 minute timeout
+            const waitMs = 15000; // 15 second interval
 
-            try {
-              await github.graphql(
-                `mutation($pullRequestId: ID!, $authorEmail: String!, $headline: String!, $body: String!) {
-                  mergePullRequest(
-                    input: {
-                      pullRequestId: $pullRequestId,
-                      mergeMethod: SQUASH,
-                      authorEmail: $authorEmail,
-                      commitHeadline: $headline,
-                      commitBody: $body
-                    }
-                  ) {
-                    pullRequest {
-                      number
-                    }
-                  }
-                }`,
-                {
-                  pullRequestId,
-                  authorEmail: ownerEmail,
-                  headline,
-                  body
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+            while (Date.now() < deadlineMs) {
+              try {
+                // We use REST API merge here instead of GraphQL enablePullRequestAutoMerge.
+                // This bypasses the 'verified email' bug while still being an owner-authored commit.
+                await github.rest.pulls.merge({
+                  owner,
+                  repo,
+                  pull_number: pullNumber,
+                  merge_method: 'merge', // Using 'merge' to preserve your contribution history (green squares)
+                  commit_title: `Merge PR #${pullNumber}: ${context.payload.pull_request.title}`,
+                  commit_message: `Auto-merged by owner @${ownerLogin} to trigger Vercel build.`
+                });
+
+                core.notice(`Successfully merged as owner @${ownerLogin}.`);
+                return;
+              } catch (error) {
+                const message = String(error.message || error);
+                const status = Number(error.status || 0);
+
+                // 405 (Not Mergeable), 409 (Conflict), or 422 (Unprocessable) usually mean checks are still running
+                if ([405, 409, 422].includes(status)) {
+                  core.notice(`Merge not ready yet (status ${status}). Waiting for checks...`);
+                  await sleep(waitMs);
+                  continue;
                 }
-              );
 
-              core.notice(`Merged immediately as owner @${ownerLogin}.`);
-              core.setOutput('merged', 'true');
-            } catch (error) {
-              const message = String(error.message || error);
-              core.notice(`Immediate merge not possible yet: ${message}`);
-              core.setOutput('merged', 'false');
-            }
-
-      - name: Enable auto-merge fallback
-        if: steps.author_gate.outputs.allowed == 'true' && steps.merge_now.outputs.merged != 'true'
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.OWNER_TOKEN }}
-          script: |
-            const pullRequestId = context.payload.pull_request.node_id;
-            const pullNumber = context.payload.pull_request.number;
-            const ownerEmail = `${{ steps.owner_identity.outputs.owner_email }}`;
-            const ownerLogin = `${{ steps.owner_identity.outputs.owner_login }}`;
-
-            try {
-              await github.graphql(
-                `mutation($pullRequestId: ID!, $authorEmail: String!, $headline: String!, $body: String!) {
-                  enablePullRequestAutoMerge(
-                    input: {
-                      pullRequestId: $pullRequestId,
-                      mergeMethod: SQUASH,
-                      authorEmail: $authorEmail,
-                      commitHeadline: $headline,
-                      commitBody: $body
-                    }
-                  ) {
-                    pullRequest { number }
-                  }
-                }`,
-                {
-                  pullRequestId,
-                  authorEmail: ownerEmail,
-                  headline: `Merge PR #${pullNumber}: ${context.payload.pull_request.title}`,
-                  body: `Auto-merged by owner @${ownerLogin}.`
-                }
-              );
-            } catch (error) {
-              const message = String(error.message || error);
-              if (
-                message.includes('already enabled') ||
-                message.includes('Auto merge is disabled') ||
-                message.includes('is not mergeable') ||
-                message.includes('At least 1 approving review is required') ||
-                message.includes('Could not resolve to a PullRequest')
-              ) {
-                core.notice(`Auto-merge not enabled yet: ${message}`);
+                core.setFailed(`Non-retryable merge error: ${message}`);
                 return;
               }
-              throw error;
             }
+
+            core.setFailed('Timeout: PR did not become mergeable within 8 minutes.');
