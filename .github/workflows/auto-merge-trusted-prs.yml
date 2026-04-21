@@ -44,6 +44,7 @@ jobs:
             const prAuthor = context.payload.pull_request.user.login.toLowerCase();
             const allowedAuthor = process.env.ALLOWED_COLLABORATOR.toLowerCase();
 
+            
             // 1. Verify PR author is the trusted user
             if (prAuthor !== allowedAuthor) {
               core.notice(`Skipping: PR author @${prAuthor} is not the trusted collaborator @${allowedAuthor}.`);
