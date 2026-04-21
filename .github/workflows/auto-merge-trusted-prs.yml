@@ -57,7 +57,7 @@ jobs:
             core.setOutput('owner_login', tokenLogin);
             core.setOutput('owner_email', ownerNoreply);
 
-      - name: Allow only JaibhagwanJindal PR author
+      - name: Allow only Jaibhagwan-sourced changes
         id: author_gate
         uses: actions/github-script@v7
         with:
@@ -66,13 +66,45 @@ jobs:
             const allowed = process.env.ALLOWED_COLLABORATOR;
             const author = context.payload.pull_request.user.login.toLowerCase();
 
-            if (author !== allowed) {
-              core.notice(`Skipping PR author @${author}. Only @${allowed} is allowed.`);
+            if (author === allowed) {
+              core.notice(`PR author @${author} is allowed.`);
+              core.setOutput('allowed', 'true');
+              return;
+            }
+
+            const { owner, repo } = context.repo;
+            const pull_number = context.payload.pull_request.number;
+            const commits = await github.paginate(github.rest.pulls.listCommits, {
+              owner,
+              repo,
+              pull_number,
+              per_page: 100
+            });
+
+            if (commits.length === 0) {
+              core.notice('No commits found in PR. Skipping.');
               core.setOutput('allowed', 'false');
               return;
             }
 
-            core.notice(`PR author @${author} is allowed.`);
+            const isCommitFromAllowedUser = (commitItem) => {
+              const authorLogin = commitItem.author?.login?.toLowerCase() || '';
+              const committerLogin = commitItem.committer?.login?.toLowerCase() || '';
+              return authorLogin === allowed || committerLogin === allowed;
+            };
+
+            const hasNonAllowedCommit = commits.some((commitItem) => !isCommitFromAllowedUser(commitItem));
+            if (hasNonAllowedCommit) {
+              core.notice(
+                `PR author is @${author} and at least one commit is not from @${allowed}. Skipping.`
+              );
+              core.setOutput('allowed', 'false');
+              return;
+            }
+
+            core.notice(
+              `PR author is @${author}, but all commits are from @${allowed}. Allowing auto-merge.`
+            );
             core.setOutput('allowed', 'true');
 
       - name: Auto-approve PR
