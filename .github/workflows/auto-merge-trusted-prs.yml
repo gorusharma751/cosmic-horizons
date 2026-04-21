@@ -33,7 +33,31 @@ jobs:
             exit 1
           fi
 
-      - name: Allow only JaibhagwanJindal PR author
+      - name: Validate owner token identity
+        id: owner_identity
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.OWNER_TOKEN }}
+          script: |
+            const viewer = await github.graphql(`query { viewer { login databaseId } }`);
+            const tokenLogin = viewer.viewer.login;
+            const tokenLoginLower = tokenLogin.toLowerCase();
+            const repoOwnerLower = context.repo.owner.toLowerCase();
+
+            if (tokenLoginLower !== repoOwnerLower) {
+              core.setFailed(
+                `OWNER_TOKEN belongs to @${tokenLogin}, but repo owner is @${context.repo.owner}. ` +
+                'Use Gourav owner token in OWNER_TOKEN secret.'
+              );
+              return;
+            }
+
+            const ownerNoreply = `${viewer.viewer.databaseId}+${tokenLogin}@users.noreply.github.com`;
+            core.notice(`Using owner identity @${tokenLogin}.`);
+            core.setOutput('owner_login', tokenLogin);
+            core.setOutput('owner_email', ownerNoreply);
+
+      - name: Allow only Jaibhagwan-sourced changes
         id: author_gate
         uses: actions/github-script@v7
         with:
@@ -42,13 +66,45 @@ jobs:
             const allowed = process.env.ALLOWED_COLLABORATOR;
             const author = context.payload.pull_request.user.login.toLowerCase();
 
-            if (author !== allowed) {
-              core.notice(`Skipping PR author @${author}. Only @${allowed} is allowed.`);
+            if (author === allowed) {
+              core.notice(`PR author @${author} is allowed.`);
+              core.setOutput('allowed', 'true');
+              return;
+            }
+
+            const { owner, repo } = context.repo;
+            const pull_number = context.payload.pull_request.number;
+            const commits = await github.paginate(github.rest.pulls.listCommits, {
+              owner,
+              repo,
+              pull_number,
+              per_page: 100
+            });
+
+            if (commits.length === 0) {
+              core.notice('No commits found in PR. Skipping.');
               core.setOutput('allowed', 'false');
               return;
             }
 
-            core.notice(`PR author @${author} is allowed.`);
+            const isCommitFromAllowedUser = (commitItem) => {
+              const authorLogin = commitItem.author?.login?.toLowerCase() || '';
+              const committerLogin = commitItem.committer?.login?.toLowerCase() || '';
+              return authorLogin === allowed || committerLogin === allowed;
+            };
+
+            const hasNonAllowedCommit = commits.some((commitItem) => !isCommitFromAllowedUser(commitItem));
+            if (hasNonAllowedCommit) {
+              core.notice(
+                `PR author is @${author} and at least one commit is not from @${allowed}. Skipping.`
+              );
+              core.setOutput('allowed', 'false');
+              return;
+            }
+
+            core.notice(
+              `PR author is @${author}, but all commits are from @${allowed}. Allowing auto-merge.`
+            );
             core.setOutput('allowed', 'true');
 
       - name: Auto-approve PR
@@ -80,26 +136,46 @@ jobs:
               throw error;
             }
 
-      - name: Try instant merge (squash)
+      - name: Try instant owner-authored merge (squash)
         id: merge_now
         if: steps.author_gate.outputs.allowed == 'true'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.OWNER_TOKEN }}
           script: |
-            const { owner, repo } = context.repo;
-            const pull_number = context.payload.pull_request.number;
+            const pullRequestId = context.payload.pull_request.node_id;
+            const pullNumber = context.payload.pull_request.number;
+            const ownerEmail = `${{ steps.owner_identity.outputs.owner_email }}`;
+            const ownerLogin = `${{ steps.owner_identity.outputs.owner_login }}`;
+            const headline = `Merge PR #${pullNumber}: ${context.payload.pull_request.title}`;
+            const body = `Auto-merged by owner @${ownerLogin}.`;
 
             try {
-              const result = await github.rest.pulls.merge({
-                owner,
-                repo,
-                pull_number,
-                merge_method: 'squash',
-                commit_title: `Merge PR #${pull_number}: ${context.payload.pull_request.title}`
-              });
+              await github.graphql(
+                `mutation($pullRequestId: ID!, $authorEmail: String!, $headline: String!, $body: String!) {
+                  mergePullRequest(
+                    input: {
+                      pullRequestId: $pullRequestId,
+                      mergeMethod: SQUASH,
+                      authorEmail: $authorEmail,
+                      commitHeadline: $headline,
+                      commitBody: $body
+                    }
+                  ) {
+                    pullRequest {
+                      number
+                    }
+                  }
+                }`,
+                {
+                  pullRequestId,
+                  authorEmail: ownerEmail,
+                  headline,
+                  body
+                }
+              );
 
-              core.notice(`Merged immediately. SHA: ${result.data.sha}`);
+              core.notice(`Merged immediately as owner @${ownerLogin}.`);
               core.setOutput('merged', 'true');
             } catch (error) {
               const message = String(error.message || error);
@@ -114,15 +190,31 @@ jobs:
           github-token: ${{ secrets.OWNER_TOKEN }}
           script: |
             const pullRequestId = context.payload.pull_request.node_id;
+            const pullNumber = context.payload.pull_request.number;
+            const ownerEmail = `${{ steps.owner_identity.outputs.owner_email }}`;
+            const ownerLogin = `${{ steps.owner_identity.outputs.owner_login }}`;
 
             try {
               await github.graphql(
-                `mutation($pullRequestId: ID!) {
-                  enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: SQUASH }) {
+                `mutation($pullRequestId: ID!, $authorEmail: String!, $headline: String!, $body: String!) {
+                  enablePullRequestAutoMerge(
+                    input: {
+                      pullRequestId: $pullRequestId,
+                      mergeMethod: SQUASH,
+                      authorEmail: $authorEmail,
+                      commitHeadline: $headline,
+                      commitBody: $body
+                    }
+                  ) {
                     pullRequest { number }
                   }
                 }`,
-                { pullRequestId }
+                {
+                  pullRequestId,
+                  authorEmail: ownerEmail,
+                  headline: `Merge PR #${pullNumber}: ${context.payload.pull_request.title}`,
+                  body: `Auto-merged by owner @${ownerLogin}.`
+                }
               );
             } catch (error) {
               const message = String(error.message || error);
