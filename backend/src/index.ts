@@ -77,6 +77,9 @@ export const io = new SocketServer(httpServer, {
   }
 })
 
+// Trust proxy for express-rate-limit (Render sits behind a proxy)
+app.set('trust proxy', 1)
+
 // Middleware
 app.use(helmet())
 app.use(cors(corsOptions))
@@ -93,6 +96,9 @@ const limiter = rateLimit({
 app.use('/api/', limiter)
 
 // Health check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString(), service: 'Cosmic Horizons API' })
+})
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), service: 'Cosmic Horizons API' })
 })
