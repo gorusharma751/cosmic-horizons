@@ -63,7 +63,7 @@ export default function StarsBackground() {
       `}</style>
       <div
         ref={containerRef}
-        className="fixed inset-0 z-0 pointer-events-none overflow-hidden"
+        className="fixed inset-0 -z-10 pointer-events-none overflow-hidden"
         style={{ background: 'radial-gradient(ellipse at top, #1a1330 0%, #0a0612 70%)' }}
       />
     </>
