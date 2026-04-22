@@ -30,34 +30,12 @@ nano .env
 
 **Configure Database:**
 
-Choose one of these options:
+The project uses a PostgreSQL database hosted directly on **Render**.
 
-#### Option A: Local PostgreSQL
-```bash
-# Windows: Install PostgreSQL from postgresql.org
-# Create database
-psql -U postgres
-CREATE DATABASE cosmic_horizons;
-\q
-
-# Update .env
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/cosmic_horizons
-```
-
-#### Option B: Supabase (Recommended for Easy Setup)
-1. Go to [supabase.com](https://supabase.com)
-2. Create new project
-3. Copy database URL from Settings > Database
-4. Update `.env`:
-```
-DATABASE_URL=postgresql://[user]:[password]@[project].supabase.co:5432/postgres
-```
-
-#### Option C: PlanetScale (MySQL)
-1. Go to [planetscale.com](https://planetscale.com)
-2. Create database
-3. Copy connection string
-4. Update `.env`
+1. Create a PostgreSQL service on Render in the same region as the backend.
+2. Copy the **Internal Database URL** (e.g., `postgresql://...dpg-xxx`).
+3. Update your Render Environment variables with this `DATABASE_URL`.
+*(Note: If you need to run the app locally on your machine, you must use the External Database URL from Render in your `.env` file).*
 
 **Initialize Database & Start Server:**
 
@@ -70,7 +48,7 @@ npx prisma db seed
 
 # Start development server
 npm run dev
-# ✅ Backend running at http://localhost:5000
+# ✅ Backend running at https://cosmic-horizons.onrender.com (or locally at port 5000)
 ```
 
 ### Step 3 — Frontend Setup
@@ -81,7 +59,7 @@ cp .env.local.example .env.local
 
 # Start
 npm run dev
-# ✅ Website at http://localhost:3000
+# ✅ Website live at https://cosmic-horizons.vercel.app (or locally at port 3000)
 ```
 
 ## Environment Variables Setup
@@ -102,7 +80,7 @@ nano backend/.env
 
 | Variable | Where to Get | Example |
 |----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL/Supabase | `postgresql://user:pass@localhost:5432/cosmic_horizons` |
+| `DATABASE_URL` | Render Postgres Dashboard | `postgresql://user:pass@dpg-xxx/db` |
 | `JWT_SECRET` | Generate random (32+ chars) | `your-secret-key-min-32-characters` |
 | `RAZORPAY_KEY_ID` | [Razorpay Dashboard](https://dashboard.razorpay.com/) | `rzp_test_xxxxx` |
 | `RAZORPAY_KEY_SECRET` | Razorpay Dashboard | `secret_key_here` |
@@ -117,19 +95,19 @@ nano backend/.env
 
 ```bash
 # Create frontend env file
-cp frontend/.env.local.example frontend/.env.local 2>/dev/null || echo "NEXT_PUBLIC_API_URL=http://localhost:5000" > frontend/.env.local
+cp frontend/.env.local.example frontend/.env.local 2>/dev/null || echo "NEXT_PUBLIC_API_URL=https://cosmic-horizons.onrender.com" > frontend/.env.local
 ```
 
 **Required Variables:**
 
 | Variable | Value |
 |----------|-------|
-| `NEXT_PUBLIC_API_URL` | `http://localhost:5000` |
+| `NEXT_PUBLIC_API_URL` | `https://cosmic-horizons.onrender.com` |
 | `NEXT_PUBLIC_RAZORPAY_KEY` | Same as backend `RAZORPAY_KEY_ID` |
 
 ## Pages Available
 
-### User Website (localhost:3000)
+### User Website (https://cosmic-horizons.vercel.app)
 | URL | Page |
 |-----|------|
 | `/` | Homepage |
@@ -147,7 +125,7 @@ cp frontend/.env.local.example frontend/.env.local 2>/dev/null || echo "NEXT_PUB
 | `/cart` | Shopping cart |
 | `/profile` | User profile |
 
-### Admin Panel (localhost:3000/admin)
+### Admin Panel (https://cosmic-horizons.vercel.app/admin)
 | URL | Page |
 |-----|------|
 | `/admin` | Dashboard |
@@ -157,7 +135,7 @@ cp frontend/.env.local.example frontend/.env.local 2>/dev/null || echo "NEXT_PUB
 | `/admin/orders` | Orders management |
 | `/admin/revenue` | Revenue analytics |
 
-### Pandit Dashboard (localhost:3000/pandit/dashboard)
+### Pandit Dashboard (https://cosmic-horizons.vercel.app/pandit/dashboard)
 | URL | Page |
 |-----|------|
 | `/pandit/dashboard` | Main dashboard |
@@ -213,8 +191,8 @@ GET  /api/payments/transactions
 
 **Test Credentials:**
 ```
-Phone: Any 10-digit number (e.g., 9876543210)
-OTP: 123456 (fixed in dev mode)
+Phone: 1234567890 (Hardcoded for testing)
+OTP: 1234 (Bypasses Twilio in production)
 ```
 
 ## Testing & Troubleshooting
@@ -222,11 +200,11 @@ OTP: 123456 (fixed in dev mode)
 ### ✅ Verify Both Servers Running
 ```bash
 # Check Backend Health
-curl http://localhost:5000/health
+curl https://cosmic-horizons.onrender.com/api/health
 # Expected: {"status":"ok","timestamp":"...","service":"Cosmic Horizons API"}
 
 # Check Frontend (open in browser)
-http://localhost:3000
+https://cosmic-horizons.vercel.app
 ```
 
 ### 🔴 Common Issues & Solutions
@@ -234,9 +212,8 @@ http://localhost:3000
 **Backend crashes on startup - "Database connection error"**
 ```bash
 ✅ Solution:
-1. Verify DATABASE_URL in backend/.env
-   - Local: postgresql://postgres:postgres@localhost:5432/cosmic_horizons
-   - Supabase: postgresql://user:pass@project.supabase.co:5432/postgres
+1. Verify DATABASE_URL in backend/.env matches your Render Postgres External URL (if testing locally).
+   - Render: postgresql://user:pass@dpg-xxx.render.com/db
 
 2. Initialize database:
    cd backend
@@ -250,9 +227,9 @@ http://localhost:3000
 **Frontend shows "Cannot connect to API"**
 ```bash
 ✅ Solution:
-1. Backend running? http://localhost:5000/health
+1. Backend running? https://cosmic-horizons.onrender.com/api/health
 2. Check frontend/.env.local:
-   NEXT_PUBLIC_API_URL=http://localhost:5000
+   NEXT_PUBLIC_API_URL=https://cosmic-horizons.onrender.com
 3. Clear browser cache
 4. Restart: npm run dev
 ```
@@ -385,8 +362,7 @@ Then test from frontend:
 
 ### Production Database Notes
 
-- **Free tier**: Supabase / Neon (PostgreSQL)
-- **Managed paid**: Render Postgres / AWS RDS
+- **Managed Postgres**: We use Render's native PostgreSQL database to stay within the same VPC and region as the backend, drastically reducing latency and costs.
 
 ## Vercel Hobby Collaborator Automation (Jaibhagwan Only)
 
