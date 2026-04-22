@@ -2,7 +2,7 @@ import axios from 'axios'
 import Cookies from 'js-cookie'
 
 const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:5000' : '')
+  process.env.NEXT_PUBLIC_API_URL || 'https://cosmic-horizons.onrender.com'
 
 if (!API_URL) {
   throw new Error('NEXT_PUBLIC_API_URL is required in production. Set it in Vercel environment variables.')

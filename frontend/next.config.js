@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const isDevelopment = process.env.NODE_ENV !== 'production'
-const defaultBackendUrl = isDevelopment ? 'http://localhost:5000' : ''
+const defaultBackendUrl = 'https://cosmic-horizons.onrender.com'
 
 const nextConfig = {
   images: {
