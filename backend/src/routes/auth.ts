@@ -8,7 +8,7 @@ const router = express.Router()
 
 // Send OTP
 router.post('/send-otp',
-  [body('phone').matches(/^[6-9]\d{9}$/).withMessage('Valid Indian mobile number required')],
+  [body('phone').matches(/^\d{10}$/).withMessage('Valid 10-digit mobile number required')],
   validate,
   sendOTP
 )
@@ -16,8 +16,8 @@ router.post('/send-otp',
 // Verify OTP
 router.post('/verify-otp',
   [
-    body('phone').matches(/^[6-9]\d{9}$/).withMessage('Valid phone required'),
-    body('otp').isLength({ min: 6, max: 6 }).withMessage('6-digit OTP required'),
+    body('phone').matches(/^\d{10}$/).withMessage('Valid 10-digit phone required'),
+    body('otp').isLength({ min: 4, max: 6 }).withMessage('4-6 digit OTP required'),
   ],
   validate,
   verifyOTP
@@ -26,7 +26,7 @@ router.post('/verify-otp',
 // Register
 router.post('/register',
   [
-    body('phone').matches(/^[6-9]\d{9}$/),
+    body('phone').matches(/^\d{10}$/),
     body('name').trim().isLength({ min: 2, max: 50 }).withMessage('Name must be 2-50 characters'),
     body('email').optional().isEmail(),
   ],
