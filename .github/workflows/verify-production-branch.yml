@@ -12,6 +12,7 @@ concurrency:
   group: deployment-check-${{ github.ref }}
   cancel-in-progress: false
 
+  
 jobs:
   check-branch:
     name: Ensure only main can deploy
@@ -26,6 +27,7 @@ jobs:
             echo "ℹ️  Push to ${{ github.ref_name }} - preview only (production restricted to main)"
             exit 0
           fi
+
 
       - name: Document deployment policy
         run: |
