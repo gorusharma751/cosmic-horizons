@@ -192,7 +192,7 @@ GET  /api/payments/transactions
 **Test Credentials:**
 ```
 Phone: 1234567890 (Hardcoded for testing)
-OTP: 1234 (Bypasses Twilio in production)
+OTP: 123456 (Bypasses Twilio in production)
 ```
 
 ## Testing & Troubleshooting
